@@ -1,0 +1,9 @@
+#!/bin/bash
+hash=$1
+
+helpfile="$(mktemp)"
+hashcat --help > $helpfile
+
+haiti -e --no-color $hash --hashcat-only | cut -d ":" -f 2 | awk '{$1=$1};1' | cut -d "]" -f 1 | head -n 1 | xargs -I>
+
+rm $helpfile

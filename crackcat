@@ -1,9 +1,21 @@
 #!/bin/bash
 hash=$1
 
-helpfile="$(mktemp)"
-hashcat --help > $helpfile
+haiti 2>/dev/null >/dev/null
+if [ $? != 0 ]
+then
+	echo "haiti Isn't Installed"
+	echo "https://github.com/noraj/haiti"
+	exit
+fi
 
-haiti -e --no-color $hash --hashcat-only | cut -d ":" -f 2 | awk '{$1=$1};1' | cut -d "]" -f 1 | head -n 1 | xargs -I>
+hashcat --verison 2>/dev/null >/dev/null
+if [ $? != 0 ]
+then
+        echo "hashcat Isn't Installed"
+        echo "https://github.com/hashcat/hashcat"
+        exit
+fi
 
-rm $helpfile
+haiti -e --no-color $hash --hashcat-only | cut -d ":" -f 2 | awk '{$1=$1};1' | cut -d "]" -f 1 | head -n 1 | xargs -I{} -n1 sh -c "hashcat -m {} -a 0 -D 1 $hash /usr/share/wordlists/rockyou.txt" # The Crazy One Liner Which Does All The Work
+

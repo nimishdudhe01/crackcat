@@ -1,7 +1,8 @@
 #!/bin/bash
+
 hash=$1
 
-haiti 2>/dev/null >/dev/null
+which haiti >/dev/null
 if [ $? != 0 ]
 then
 	echo "haiti Isn't Installed"
@@ -9,7 +10,7 @@ then
 	exit
 fi
 
-hashcat --verison 2>/dev/null >/dev/null
+which hashcat >/dev/null
 if [ $? != 0 ]
 then
         echo "hashcat Isn't Installed"
@@ -17,5 +18,29 @@ then
         exit
 fi
 
-haiti -e --no-color $hash --hashcat-only | cut -d ":" -f 2 | awk '{$1=$1};1' | cut -d "]" -f 1 | head -n 1 | xargs -I{} -n1 sh -c "hashcat -m {} -a 0 -D 1 $hash /usr/share/wordlists/rockyou.txt" # The Crazy One Liner Which Does All The Work
+x="$(mktemp)"
 
+haiti -e --no-color $hash --hashcat-only | grep "\[HC" | cut -d ":" -f 2 | awk '{$1=$1};1' | cut -d "]" -f 1 >/tmp/possible-hashvals
+
+cat /tmp/possible-hashvals | xargs -I{} bash -c "hashcat -m {} -a 0 -d 1 $hash /usr/share/wordlists/rockyou.txt 2>$x >>/tmp/crack" 2>/tmp/err
+
+cat /tmp/crack | grep Cracked >/tmp/abcd
+if [ $? == 0 ]
+then
+	cat /tmp/crack | grep Cracked -B 3 | head -n 1 | cut -d ":" -f 2 | xargs -I{} bash -c "echo The Password Is : {}"
+	if [[ $? -eq 0  ]]; then
+		break
+	fi
+fi
+
+cat /tmp/crack | grep "hashes found" >/tmp/abcd
+if [ $? == 0 ]
+then
+	cat "/home/secovfshanks/.local/share/hashcat/hashcat.potfile" | grep -i $hash | cut -d ":" -f 2 | xargs -I{} bash -c "echo The Password Is : {}"
+fi
+
+rm /tmp/crack
+rm /tmp/err
+rm /tmp/abcd
+
+rm $x

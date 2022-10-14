@@ -1,5 +1,5 @@
 # crackcat
-A basic cli hash cracking tool which uses haiti and hashcat to crack the hash provided(it is a bit buggy at the moment, but it'll get better).
+A basic cli hash cracking tool which uses haiti and hashcat to crack the hash provided.
 
 ## Requirements:
 - Hashcat (https://github.com/hashcat/hashcat) (sudo apt-get install hashcat)

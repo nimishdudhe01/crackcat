@@ -25,20 +25,24 @@ touch /tmp/err
 
 haiti -e --no-color $hash --hashcat-only | grep "\[HC" | cut -d ":" -f 2 | awk '{$1=$1};1' | cut -d "]" -f 1 >/tmp/possible-hashvals
 
-cat /tmp/possible-hashvals | while read line
-do
-	hashcat -m $line -a 0 -d 1 $hash /usr/share/wordlists/rockyou.txt 2>/tmp/err >/tmp/crack
-	if [ $? -eq 0  ]
-	then
-		cat /tmp/crack | grep Cracked >/dev/null
-		if [ $? -eq 0 ]
+if [ -f "/usr/share/wordlists/rockyou.txt" ]; then
+	cat /tmp/possible-hashvals | while read line
+	do
+		hashcat -m $line -a 0 -d 1 $hash /usr/share/wordlists/rockyou.txt 2>/tmp/err >/tmp/crack
+		if [ $? -eq 0  ]
 		then
-			cat /tmp/crack | grep Cracked -B 3 | head -n 1 | cut -d ":" -f 2 | xargs -I{} bash -c "echo The Plaintext Is : {}"
-		else
-			cat "/home/$(whoami)/.local/share/hashcat/hashcat.potfile" | grep -i $hash | cut -d ":" -f 2 | xargs -I{} bash -c "echo The Plaintext Is : {}"
+			cat /tmp/crack | grep Cracked >/dev/null
+			if [ $? -eq 0 ]
+			then
+				cat /tmp/crack | grep Cracked -B 3 | head -n 1 | cut -d ":" -f 2 | xargs -I{} bash -c "echo The Plaintext Is : {}"
+			else
+				cat "/home/$(whoami)/.local/share/hashcat/hashcat.potfile" | grep -i $hash | cut -d ":" -f 2 | xargs -I{} bash -c "echo The Plaintext Is : {}"
+			fi
+			exit
 		fi
-		exit
-	fi
-done
-
-rm /tmp/crack /tmp/err /tmp/possible-hashvals $x
+	done
+	rm /tmp/crack /tmp/err /tmp/possible-hashvals $x
+else
+	echo "The file rockyou.txt does not exist. Edit the code if you want to select another word-list."
+	exit
+fi

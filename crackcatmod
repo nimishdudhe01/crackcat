@@ -27,10 +27,28 @@ fi
 
 touch /tmp/crack
 
-x=$(hashcat $hash 2>/dev/null | grep "of your input" | cut -d " " -f 8)
-hashcat $hash 2>/dev/null | grep "of your input" -A $((x+3)) | tail -n $x 2>/dev/null | awk '{$1=$1};1' >/tmp/possible-hashtypes
+x=$(timeout 2 hashcat $hash 2>/dev/null >/tmp/abcd; cat /tmp/abcd | grep "your input" | cut -d " " -f 8)
+
+if [ "$x" == "only" ]
+then
+	cat /tmp/abcd | grep "your input" -C 2 | tail -n 1 >/tmp/possible-hashtypes
+else
+	hashcat $hash 2>/dev/null | grep "your input" -A $((x+3)) | tail -n $x 2>/dev/null | awk '{$1=$1};1' >/tmp/possible-hashtypes
+fi
 
 echo -e "\033[1;32m[+] Finding Possible Hash Types\033[0m"
+
+if [ $(cat /tmp/possible-hashtypes | wc -l) -eq 0 ]
+then
+	echo -e "\033[1;31m No possible hashes found, I suggest You to take a look at (https://hashcat.net/wiki/doku.php?id=example_hashes) manually and run the command below \033[0m"
+	if [ $# -eq 2 ]
+	then
+		echo "hashcat -m <hashvalue> -a 0 -d 1 $hash $2"
+	else
+		echo "hashcat -m <hashvalue> -a 0 -d 1 $hash /usr/share/wordlists/rockyou.txt"
+	fi
+	exit
+fi
 
 cat /tmp/possible-hashtypes | cut -d "|" -f 2 | while read line
 do
@@ -61,16 +79,18 @@ do
 		then
 			echo -e "\033[1;35;47m $(echo $line | cut -d "|" -f 2 | awk '{$1=$1};1') \033[0m Failed"
 			continue
+		else
+			cracked=1
 		fi
-		echo $cracked 120
 	else
 		hashcat -m $hashval -a 0 -d 1 $hash /usr/share/wordlists/rockyou.txt 2>/tmp/err >/tmp/crack
 		if [ $? -ne 0 ]
 		then
 			echo -e "\033[1;35;47m $(echo $line | cut -d "|" -f 2 | awk '{$1=$1};1') \033[0m Failed"
 			continue
+		else
+			cracked=1
 		fi
-		echo $cracked 210
 	fi
 
 	cat /tmp/crack | grep "Cracked\|found as potfile" >/dev/null
@@ -80,7 +100,13 @@ do
 		cat /tmp/crack | grep Cracked >/dev/null
 		if [ $? -eq 0 ]
 		then
-			cat /tmp/crack | grep Cracked -B 3 | head -n 1 | cut -d ":" -f 2 | xargs -I{} bash -c "echo -e '\033[1;32mThe Plaintext Is : \033[7;34m{}\033[0m'"
+			echo $hash | grep ":"
+			if [ $? -eq 0 ]
+			then
+				cat /tmp/crack | grep Cracked -B 3 | head -n 1 | cut -d ":" -f 3 | xargs -I{} bash -c "echo -e '\033[1;32mThe Plaintext Is : \033[7;34m{}\033[0m'"
+			else
+				cat /tmp/crack | grep Cracked -B 3 | head -n 1 | cut -d ":" -f 2 | xargs -I{} bash -c "echo -e '\033[1;32mThe Plaintext Is : \033[7;34m{}\033[0m'"
+			fi
 			exit
 		else
 			echo -e "\033[1;32m[+] Found The Hash in Potfile\033[0m"
@@ -90,13 +116,11 @@ do
 	else
 		continue
 	fi
-
-	if [ $cracked -eq 0 ]
-	then
-		echo not found $cracked
-		echo -e "\033[1;31mPassword Not Found In Wordlist\033[0m"
-	fi
-
 done
 
-# rm /tmp/crack /tmp/err /tmp/possible-hashtypes
+rm /tmp/crack /tmp/err /tmp/possible-hashtypes
+
+if [ $cracked -eq 0 ]
+then
+	echo -e "\033[1;31;47m Password Not Found In Wordlist \033[0m"
+fi

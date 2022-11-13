@@ -1,5 +1,8 @@
 #!/bin/bash
 
+echo -e "\033[1;32m$(cat ./assets/banner)\033[0m"
+echo ""
+
 touch /home/$(whoami)/.local/share/hashcat/hashcat.potfile
 
 hash=$1
@@ -141,4 +144,3 @@ if [ $cracked -eq 0 ]
 then
 	echo -e "\033[1;31;47m Password Not Found In Wordlist/The hash type doesn't match \033[0m"
 fi
-

@@ -1,147 +1,48 @@
 #!/bin/bash
 
-echo ""
-echo -e "\033[1;32m$(cat ./assets/banner)\033[0m"
-echo ""
-
-touch /home/$(whoami)/.local/share/hashcat/hashcat.potfile
-
 hash=$1
-cracked=0
-not_installed=0
 
-check(){
-	which $1 >/dev/null 2>/dev/null
-	if [ $? -eq 0 ]
-	then
-		echo -n ""
-	else
-		echo -e "\033[41m$1 is not installed.\033[0m"
-		not_installed=1
-	fi
-}
-
-check hashcat
-
-touch /tmp/err
-
-if [ $not_installed -eq 1 ]
+which haiti >/dev/null
+if [ $? != 0 ]
 then
-	echo -e "\033[1;41mInstall the required tool(s)\033[0m"
+	echo "haiti Isn't Installed"
+	echo "https://github.com/noraj/haiti"
 	exit
 fi
+
+which hashcat >/dev/null
+if [ $? != 0 ]
+then
+        echo "hashcat Isn't Installed"
+        echo "https://github.com/hashcat/hashcat"
+        exit
+fi
+
+x="$(mktemp)"
 
 touch /tmp/crack
+touch /tmp/err
 
-x=$(timeout 2 hashcat $hash 2>/dev/null >/tmp/abcd; cat /tmp/abcd | grep "your input" | cut -d " " -f 8)
+haiti -e --no-color $hash --hashcat-only | grep "\[HC" | cut -d ":" -f 2 | awk '{$1=$1};1' | cut -d "]" -f 1 >/tmp/possible-hashvals
 
-echo -e "\033[1;32m[+] Finding Possible Hash Types\033[0m"
-
-if [ "$x" == "only" ]
-then
-	cat /tmp/abcd | grep "your input" -C 2 | tail -n 1 >/tmp/possible-hashtypes
-else
-	hashcat $hash 2>/dev/null | grep "your input" -A $((x+3)) | tail -n $x 2>/dev/null | awk '{$1=$1};1' >/tmp/possible-hashtypes
-fi
-
-if [ $(cat /tmp/possible-hashtypes | wc -l) -eq 0 ]
-then
-	echo -e "\033[1;31m No possible hashes found, I suggest You to take a look at (https://hashcat.net/wiki/doku.php?id=example_hashes) manually and run the command below \033[0m"
-	if [ $# -eq 2 ]
-	then
-		echo "hashcat -m <hashvalue> -a 0 -d 1 $hash $2"
-	else
-		echo "hashcat -m <hashvalue> -a 0 -d 1 $hash /usr/share/wordlists/rockyou.txt"
-	fi
-	exit
-fi
-
-cat /tmp/possible-hashtypes | cut -d "|" -f 2 | while read line
-do
-	echo -e "  \033[1;35;43m $line \033[0m"
-done
-
-cat /home/$(whoami)/.local/share/hashcat/hashcat.potfile | grep -i $hash >/dev/null
-if [ $? -eq 0 ]
-then
-        echo -e "\033[1;32m[+] Found The Hash in Potfile\033[0m"
-        echo $hash | grep ":" > /dev/null
-        if [ $? -eq 0 ]
-        then
-                cat "/home/$(whoami)/.local/share/hashcat/hashcat.potfile" | grep -i $hash | cut -d ":" -f 3 | xargs -I{} bash -c "echo -e '\033[1;32mThe Plaintext Is : \033[7;34m{}\033[0m'"
-        else
-                cat "/home/$(whoami)/.local/share/hashcat/hashcat.potfile" | grep -i $hash | cut -d ":" -f 2 | xargs -I{} bash -c "echo -e '\033[1;32mThe Plaintext Is : \033[7;34m{}\033[0m'"
-        fi
-	exit
-fi
-
-if [ $# -eq 1 ] & [ ! -f "/usr/share/wordlists/rockyou.txt" ]
-then
-	echo "The file rockyou.txt doesn't seem to exist at its default path, You need to pass a wordlist."
-	exit
-fi
-
-n=$(cat /tmp/possible-hashtypes | wc -l)
-
-echo ""
-echo -e "\033[1;32m[+] Trying To Crack Different Possible Hash Types\033[0m"
-
-for (( i=1; i<=$n; i++))
-do
-	line=$(cat /tmp/possible-hashtypes | head -n $i | tail -n 1);
-
-	hashname=$(echo $line | cut -d "|" -f 2 | awk '{$1=$1};1')
-	hashval=$(echo $line | cut -d "|" -f 1 | awk '{$1=$1};1')
-
-	echo -e "Trying \033[1;35;47m $(echo $line | cut -d "|" -f 2 | awk '{$1=$1};1') \033[0m"
-
-	if [ $# -eq 2 ]
-	then
-		hashcat -m $hashval -a 0 -d 1 $hash $2 2>/tmp/err >/tmp/crack
-		if [ $? -ne 0 ]
+if [ -f "/usr/share/wordlists/rockyou.txt" ]; then
+	cat /tmp/possible-hashvals | while read line
+	do
+		hashcat -m $line -a 0 -d 1 $hash /usr/share/wordlists/rockyou.txt 2>/tmp/err >/tmp/crack
+		if [ $? -eq 0  ]
 		then
-			echo -e "\033[1;35;47m $(echo $line | cut -d "|" -f 2 | awk '{$1=$1};1') \033[0m Failed"
-			echo ''
-			continue
-		else
-			cracked=1
-		fi
-	else
-		hashcat -m $hashval -a 0 -d 1 $hash /usr/share/wordlists/rockyou.txt 2>/tmp/err >/tmp/crack
-		if [ $? -ne 0 ]
-		then
-			echo -e "\033[1;35;47m $(echo $line | cut -d "|" -f 2 | awk '{$1=$1};1') \033[0m Failed"
-			echo ''
-			continue
-		else
-			cracked=1
-		fi
-	fi
-
-	cat /tmp/crack | grep "Cracked\|found as potfile" >/dev/null
-
-	if [ $? -eq 0 ]
-	then
-		cat /tmp/crack | grep Cracked >/dev/null
-		if [ $? -eq 0 ]
-		then
-			echo $hash | grep ":" > /dev/null
+			cat /tmp/crack | grep Cracked >/dev/null
 			if [ $? -eq 0 ]
 			then
-				cat /tmp/crack | grep Cracked -B 3 | head -n 1 | cut -d ":" -f 3 | xargs -I{} bash -c "echo -e '\033[1;32mThe Plaintext Is : \033[7;34m{}\033[0m'"
+				cat /tmp/crack | grep Cracked -B 3 | head -n 1 | cut -d ":" -f 2 | xargs -I{} bash -c "echo The Plaintext Is : {}"
 			else
-				cat /tmp/crack | grep Cracked -B 3 | head -n 1 | cut -d ":" -f 2 | xargs -I{} bash -c "echo -e '\033[1;32mThe Plaintext Is : \033[7;34m{}\033[0m'"
+				cat "/home/$(whoami)/.local/share/hashcat/hashcat.potfile" | grep -i $hash | cut -d ":" -f 2 | xargs -I{} bash -c "echo The Plaintext Is : {}"
 			fi
 			exit
 		fi
-	else
-		continue
-	fi
-done
-
-rm /tmp/crack /tmp/err /tmp/possible-hashtypes /tmp/abcd
-
-if [ $cracked -eq 0 ]
-then
-	echo -e "\033[1;31;47m Password Not Found In Wordlist/The hash type doesn't match \033[0m"
+	done
+	rm /tmp/crack /tmp/err /tmp/possible-hashvals $x
+else
+	echo "The file rockyou.txt does not exist. Edit the code if you want to select another word-list."
+	exit
 fi

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+echo ""
 echo -e "\033[1;32m$(cat ./assets/banner)\033[0m"
 echo ""
 
